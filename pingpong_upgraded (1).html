@@ -1,0 +1,1902 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Ping Pong 3D Pro - סימולטור טניס שולחן מקצועי</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Heebo, Orbitron for scores -->
+    <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;700;900&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Tone.js for real-time synthesized physical ping-pong audio -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Heebo', 'sans-serif'],
+                        tech: ['Orbitron', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            background-color: #0b0f19;
+            overflow: hidden;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: none;
+        }
+        .neon-text-cyan {
+            text-shadow: 0 0 10px rgba(6, 182, 212, 0.7);
+        }
+        .neon-text-orange {
+            text-shadow: 0 0 10px rgba(249, 115, 22, 0.7);
+        }
+    </style>
+</head>
+<body class="w-screen h-screen flex flex-col items-center justify-center font-sans text-white relative">
+
+    <div id="envBg" class="absolute inset-0 z-0 bg-gradient-to-b from-[#0f172a] via-[#090d16] to-[#020617] transition-all duration-700">
+        <div class="absolute inset-0 opacity-[0.03]" style="background-image: radial-gradient(#ffffff 1px, transparent 1px); background-size: 24px 24px;"></div>
+    </div>
+
+    <!-- MAIN GAME DISPLAY WRAPPER -->
+    <div id="gameContainer" class="w-full h-full max-w-6xl max-h-[94vh] flex flex-col items-center justify-between p-4 z-10 transition-all duration-300 relative">
+        
+        <!-- HEADER WITH CONTROLS AND HUD -->
+        <header class="w-full flex items-center justify-between border-b border-slate-800/60 pb-3">
+            <div class="flex items-center gap-3">
+                <span class="text-xs bg-orange-500/10 border border-orange-500/30 px-2.5 py-1 rounded-full text-orange-400 font-tech uppercase tracking-wider">3D Extreme v6.0</span>
+                <h1 class="text-xl md:text-2xl font-black font-tech tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-orange-400 via-amber-200 to-cyan-400">PING PONG 3D</h1>
+            </div>
+            
+            <div class="flex items-center gap-3">
+                <!-- Coin Display -->
+                <div class="flex items-center gap-2 bg-amber-500/10 border border-amber-500/30 px-3 py-1.5 rounded-full text-amber-400">
+                    <i class="fa-solid fa-coins animate-pulse"></i>
+                    <span id="coinCount" class="font-tech font-bold">150</span>
+                </div>
+                <!-- Shop button -->
+                <button onclick="toggleModal('shopModal')" class="w-10 h-10 rounded-full border border-slate-700 flex items-center justify-center hover:bg-slate-800 transition shadow-lg" title="חנות סקינים ועיצובים">
+                    <i class="fa-solid fa-store text-amber-400"></i>
+                </button>
+                <!-- Customization button -->
+                <button onclick="toggleModal('customModal')" class="w-10 h-10 rounded-full border border-slate-700 flex items-center justify-center hover:bg-slate-800 transition" title="עיצוב שולחן ואולם">
+                    <i class="fa-solid fa-palette text-cyan-400"></i>
+                </button>
+                <!-- Help toggle -->
+                <button onclick="toggleModal('helpModal')" class="w-10 h-10 rounded-full border border-slate-700 flex items-center justify-center hover:bg-slate-800 transition">
+                    <i class="fa-solid fa-circle-info text-slate-300"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- CANVAS STAGE CONTAINER -->
+        <div id="canvasParent" class="w-full flex-grow my-4 relative rounded-2xl overflow-hidden border border-slate-800/80 bg-[#070b12] flex items-center justify-center shadow-2xl">
+            
+            <!-- Real-time Scoreboard HUD -->
+            <div class="absolute top-6 left-0 right-0 flex justify-between px-12 pointer-events-none z-10">
+                <div class="flex flex-col items-start bg-slate-900/60 backdrop-blur-md p-3 rounded-xl border border-slate-800">
+                    <span class="text-[10px] text-slate-400 font-semibold tracking-wider">יריב (AI)</span>
+                    <span id="aiScoreDisplay" class="text-4xl font-tech font-bold text-slate-200">0</span>
+                </div>
+                
+                <!-- Dynamic Serve Alert HUD -->
+                <div id="serveAlertHUD" class="hidden flex flex-col items-center justify-center self-center bg-cyan-500/10 border border-cyan-500/30 px-5 py-2 rounded-xl animate-bounce">
+                    <span class="text-xs text-cyan-400 font-bold tracking-widest uppercase"><i class="fa-solid fa-table-tennis-paddle-ball mr-1 animate-spin"></i> תורך להגיש!</span>
+                    <span class="text-[10px] text-slate-300">לחץ כדי להקפיץ את הכדור, ואז חבוט</span>
+                </div>
+
+                <!-- Center Power Shot Indicator -->
+                <div id="hudCombo" class="hidden flex flex-col items-center justify-center self-center bg-orange-500/10 border border-orange-500/30 px-4 py-2 rounded-xl">
+                    <span class="text-xs text-orange-400 font-bold tracking-widest animate-pulse"><i class="fa-solid fa-fire mr-1"></i> מכת סמאש מוכנה!</span>
+                    <span class="text-[9px] text-slate-400">לחץ/גע כדי להנחית בעוצמה</span>
+                </div>
+
+                <div class="flex flex-col items-end bg-slate-900/60 backdrop-blur-md p-3 rounded-xl border border-slate-800">
+                    <span class="text-[10px] text-orange-400 font-semibold tracking-wider">שחקן (אתה)</span>
+                    <span id="playerScoreDisplay" class="text-4xl font-tech font-bold text-orange-500 neon-text-orange">0</span>
+                </div>
+            </div>
+
+            <!-- Serve Switch Notification -->
+            <div id="serveSwitchNotif" style="position:absolute;top:60px;left:50%;transform:translateX(-50%) translateY(-20px);opacity:0;transition:all 0.4s;background:rgba(249,115,22,0.9);color:#000;font-weight:bold;padding:8px 20px;border-radius:12px;z-index:30;font-size:14px;pointer-events:none;white-space:nowrap;"></div>
+
+            <!-- Canvas Element -->
+            <canvas id="pingPongCanvas" class="w-full h-full block cursor-none"></canvas>
+            
+            <!-- MAIN START / OVERLAY SCREEN -->
+            <div id="mainMenu" class="absolute inset-0 bg-slate-950/95 flex flex-col items-center justify-center p-6 z-20 transition-all duration-300">
+                <div class="text-center max-w-xl w-full">
+                    <div class="mb-3 inline-block px-4 py-1 bg-orange-500/10 text-orange-400 text-xs font-bold tracking-widest rounded-full uppercase border border-orange-500/30">
+                        סימולטור 3D מקצועי עם הגשות וחנות סקינים
+                    </div>
+                    <h2 class="text-4xl md:text-5xl font-extrabold font-tech mb-4 tracking-tight text-white leading-tight">
+                        PING PONG <span class="text-orange-500 neon-text-orange">3D PRO</span>
+                    </h2>
+                    
+                    <p class="text-slate-400 text-sm mb-6 leading-relaxed">
+                        שלוט במטקה תלת-ממדית מוגדלת במרחב משחק חופשי ומורחב. השתמש במנגנון הגשה אמיתי, בצע חיתוכים, הנחת סמאשים וצבור כסף כדי לשדרג את המראה של הכדור והמטקה שלך!
+                    </p>
+
+                    <!-- Expanded 5-Level Difficulty Selection -->
+                    <div class="mb-6 w-full">
+                        <label class="block text-xs text-slate-400 mb-2 font-bold uppercase tracking-wider">רמת מיומנות היריב (5 דרגות קושי)</label>
+                        <div class="grid grid-cols-5 gap-1.5 bg-slate-900 p-1.5 rounded-xl border border-slate-800">
+                            <button onclick="setDifficulty('practice')" id="diff-practice" class="py-2 px-1 text-[11px] md:text-xs font-bold rounded-lg transition-all text-slate-400">אימון קל</button>
+                            <button onclick="setDifficulty('easy')" id="diff-easy" class="py-2 px-1 text-[11px] md:text-xs font-bold rounded-lg transition-all text-slate-400">חובבן</button>
+                            <button onclick="setDifficulty('medium')" id="diff-medium" class="py-2 px-1 text-[11px] md:text-xs font-bold rounded-lg transition-all text-orange-500 bg-orange-500/10 border border-orange-500/20">מקצוען</button>
+                            <button onclick="setDifficulty('hard')" id="diff-hard" class="py-2 px-1 text-[11px] md:text-xs font-bold rounded-lg transition-all text-slate-400">אלוף הארץ</button>
+                            <button onclick="setDifficulty('cyber')" id="diff-cyber" class="py-2 px-1 text-[11px] md:text-xs font-bold rounded-lg transition-all text-slate-400">סייבר AI</button>
+                        </div>
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="flex flex-col gap-3">
+                        <button onclick="startGame()" class="w-full py-4 bg-gradient-to-r from-orange-500 to-amber-500 text-slate-950 font-tech font-black text-lg rounded-xl shadow-[0_0_25px_rgba(249,115,22,0.35)] hover:brightness-110 active:scale-98 transition transform">
+                            התחל משחק <i class="fa-solid fa-table-tennis-paddle-ball mr-2"></i>
+                        </button>
+                        <div class="grid grid-cols-3 gap-3">
+                            <button onclick="toggleModal('shopModal')" class="py-3 bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-200 font-bold rounded-xl transition flex items-center justify-center gap-2 text-xs md:text-sm">
+                                <i class="fa-solid fa-store text-amber-400"></i> חנות סקינים
+                            </button>
+                            <button onclick="toggleModal('customModal')" class="py-3 bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-200 font-bold rounded-xl transition flex items-center justify-center gap-2 text-xs md:text-sm">
+                                <i class="fa-solid fa-palette text-cyan-400"></i> התאמה אישית
+                            </button>
+                            <button onclick="toggleModal('helpModal')" class="py-3 bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-200 font-bold rounded-xl transition flex items-center justify-center gap-2 text-xs md:text-sm">
+                                <i class="fa-solid fa-gamepad text-emerald-400"></i> איך משחקים
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- GAME OVER OVERLAY -->
+            <div id="gameOverOverlay" class="hidden absolute inset-0 bg-slate-950/95 flex flex-col items-center justify-center p-6 z-20">
+                <div class="text-center max-w-md">
+                    <span id="goResultIcon" class="text-6xl mb-4 inline-block">🏆</span>
+                    <h3 id="goResultTitle" class="text-4xl font-tech font-extrabold text-orange-500 mb-2">ניצחת!</h3>
+                    <p id="goResultDesc" class="text-slate-400 text-sm mb-6">הפגנת שליטה מדהימה בשולחן!</p>
+                    
+                    <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl mb-6 grid grid-cols-2 gap-4">
+                        <div>
+                            <span class="block text-xs text-slate-500 mb-1">מטבעות שהרווחת</span>
+                            <span class="text-2xl font-tech font-bold text-amber-400" id="goCoinsEarned">+0 <i class="fa-solid fa-coins"></i></span>
+                        </div>
+                        <div>
+                            <span class="block text-xs text-slate-500 mb-1">תוצאה סופית</span>
+                            <span class="text-2xl font-tech font-bold text-white" id="goFinalScore">0 - 0</span>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col gap-3">
+                        <button onclick="startGame()" class="w-full py-4 bg-gradient-to-r from-orange-500 to-amber-500 text-slate-950 font-bold rounded-xl shadow-lg hover:brightness-110 active:scale-98 transition">
+                            שחק שוב <i class="fa-solid fa-rotate-left mr-2"></i>
+                        </button>
+                        <button onclick="backToMenu()" class="w-full py-3 bg-slate-900 border border-slate-800 text-slate-300 font-bold rounded-xl hover:bg-slate-800 transition">
+                            חזרה לתפריט <i class="fa-solid fa-house mr-2"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- FOOTER BAR -->
+        <footer class="w-full flex items-center justify-between border-t border-slate-800/40 pt-3 text-xs text-slate-500">
+            <span class="hidden md:inline"><i class="fa-solid fa-arrows-up-down-left-right text-orange-500 ml-1"></i> הזז את העכבר לכל הכיוונים - המטקה נעה חופשי. <strong>לחץ שמאלית</strong> כדי להקפיץ ולהגיש, או לבצע סמאש!</span>
+            <span class="md:hidden"><i class="fa-solid fa-fingerprint text-orange-500 ml-1"></i> גרור אצבע לכל כיוון. <strong>נגיעה במסך</strong> כדי להקפיץ ולהגיש, או לבצע סמאש!</span>
+            
+            <button id="pauseBtn" onclick="togglePause()" class="hidden bg-slate-900 border border-slate-800 px-4 py-1.5 rounded-lg text-slate-300 font-bold hover:bg-slate-800 transition">
+                <i class="fa-solid fa-pause"></i> עצור משחק
+            </button>
+        </footer>
+    </div>
+
+    <!-- SHOP MODAL -->
+    <div id="shopModal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-slate-900 w-full max-w-2xl rounded-2xl border border-slate-800 overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+            <div class="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-950/50">
+                <div class="flex items-center gap-3">
+                    <i class="fa-solid fa-store text-amber-400 text-xl"></i>
+                    <div>
+                        <h3 class="text-lg font-bold text-white">חנות הציוד והסקינים</h3>
+                        <p class="text-xs text-slate-400">רכוש עיצובים מהממים לכדורים ולמטקות שלך!</p>
+                    </div>
+                </div>
+                <button onclick="toggleModal('shopModal')" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+
+            <!-- Tab Buttons -->
+            <div class="flex border-b border-slate-800 bg-slate-950/30">
+                <button onclick="switchShopTab('balls')" id="tab-balls" class="flex-1 py-3 text-sm font-bold border-b-2 border-orange-500 text-orange-400 transition-all">סקינים לכדור</button>
+                <button onclick="switchShopTab('paddles')" id="tab-paddles" class="flex-1 py-3 text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-slate-300 transition-all">מטקות רגילות</button>
+                <button onclick="switchShopTab('acoustic')" id="tab-acoustic" class="flex-1 py-3 text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-slate-300 transition-all">🪵 מטקות אקוטיות</button>
+            </div>
+
+            <!-- Items list -->
+            <div id="shopItemsGrid" class="p-6 overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-4 flex-grow">
+                <!-- Loaded dynamically by JS -->
+            </div>
+
+            <div class="p-4 bg-slate-950/40 border-t border-slate-800 flex justify-between items-center">
+                <div class="flex items-center gap-2">
+                    <span class="text-slate-400 text-xs font-bold">היתרה שלך:</span>
+                    <span class="text-base font-tech font-bold text-amber-400"><span class="wallet-coins">150</span> <i class="fa-solid fa-coins"></i></span>
+                </div>
+                <button onclick="toggleModal('shopModal')" class="bg-gradient-to-r from-orange-500 to-amber-500 text-slate-950 font-bold px-6 py-2 rounded-xl text-sm hover:brightness-110">
+                    חזרה למשחק
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- CUSTOMIZATION / CONFIG MODAL -->
+    <div id="customModal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-slate-900 w-full max-w-lg rounded-2xl border border-slate-800 overflow-hidden shadow-2xl flex flex-col">
+            <div class="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-950/50">
+                <div class="flex items-center gap-3">
+                    <i class="fa-solid fa-palette text-cyan-400 text-xl"></i>
+                    <div>
+                        <h3 class="text-lg font-bold text-white">עיצוב השולחן והאולם</h3>
+                        <p class="text-xs text-slate-400">בחר את סגנון המשחק המועדף עליך</p>
+                    </div>
+                </div>
+                <button onclick="toggleModal('customModal')" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+
+            <div class="p-6 flex flex-col gap-6">
+                <!-- Table Color Selection -->
+                <div>
+                    <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">צבע שולחן הטניס</label>
+                    <div class="grid grid-cols-3 gap-3">
+                        <button onclick="setTableColor('classicGreen')" id="table-classicGreen" class="p-3 bg-slate-950 rounded-xl border border-emerald-500/40 hover:border-emerald-500 transition text-right">
+                            <span class="block w-5 h-5 bg-emerald-700 rounded mb-1"></span>
+                            <span class="text-xs font-bold text-slate-300">ירוק קלאסי</span>
+                        </button>
+                        <button onclick="setTableColor('olympicBlue')" id="table-olympicBlue" class="p-3 bg-slate-950 rounded-xl border border-cyan-500/20 hover:border-cyan-500 transition text-right">
+                            <span class="block w-5 h-5 bg-cyan-700 rounded mb-1"></span>
+                            <span class="text-xs font-bold text-slate-300">כחול אולימפי</span>
+                        </button>
+                        <button onclick="setTableColor('cyberPink')" id="table-cyberPink" class="p-3 bg-slate-950 rounded-xl border border-pink-500/20 hover:border-pink-500 transition text-right">
+                            <span class="block w-5 h-5 bg-pink-700 rounded mb-1"></span>
+                            <span class="text-xs font-bold text-slate-300">ורוד סייבר</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Environment/Arena Selection -->
+                <div>
+                    <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">אולם ורקע סביבתי</label>
+                    <div class="grid grid-cols-3 gap-3">
+                        <button onclick="setEnv('classicGym')" id="env-classicGym" class="p-3 bg-slate-950 rounded-xl border border-amber-500/40 hover:border-amber-500 transition text-right">
+                            <span class="block text-xs font-bold text-slate-300">אולם מועדון</span>
+                            <span class="text-[10px] text-slate-500">תאורה חמימה וביתית</span>
+                        </button>
+                        <button onclick="setEnv('cyberStadium')" id="env-cyberStadium" class="p-3 bg-slate-950 rounded-xl border border-cyan-500/20 hover:border-cyan-500 transition text-right">
+                            <span class="block text-xs font-bold text-slate-300">מועדון סייבר</span>
+                            <span class="text-[10px] text-slate-500">תאורת ניאון אפלה</span>
+                        </button>
+                        <button onclick="setEnv('darkMinimal')" id="env-darkMinimal" class="p-3 bg-slate-950 rounded-xl border border-slate-500/20 hover:border-slate-500 transition text-right">
+                            <span class="block text-xs font-bold text-slate-300">סטודיו כהה</span>
+                            <span class="text-[10px] text-slate-500">עיצוב מינימליסטי</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="p-4 bg-slate-950/40 border-t border-slate-800 flex justify-end">
+                <button onclick="toggleModal('customModal')" class="bg-gradient-to-r from-orange-500 to-amber-500 text-slate-950 font-bold px-6 py-2 rounded-xl text-sm hover:brightness-110">
+                    שמור וסגור
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- HOW TO PLAY MODAL -->
+    <div id="helpModal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-slate-900 w-full max-w-md rounded-2xl border border-slate-800 overflow-hidden shadow-2xl flex flex-col">
+            <div class="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-950/50">
+                <h3 class="text-lg font-bold text-white flex items-center gap-2"><i class="fa-solid fa-circle-question text-orange-500"></i> מדריך החבטות וההגשות</h3>
+                <button onclick="toggleModal('helpModal')" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+
+            <div class="p-6 text-sm text-slate-300 flex flex-col gap-4 max-h-[60vh] overflow-y-auto">
+                <div>
+                    <h4 class="font-bold text-white mb-1"><i class="fa-solid fa-circle-play text-orange-500 ml-1"></i> איך מגישים כדור? (Serve)</h4>
+                    <p class="text-xs text-slate-400 leading-relaxed">כשהמשחק מתחיל או לאחר נקודה, הכדור יחכה על המטקה שלך. **לחץ על העכבר או גע במסך פעם אחת** כדי להקפיץ/להטיל אותו מעלה באוויר. כשהוא יורד מעט חזרה, הזז את המטקה וחבוט בו קדימה מעבר לרשת!</p>
+                </div>
+
+                <div>
+                    <h4 class="font-bold text-white mb-1"><i class="fa-solid fa-arrows-up-down-left-right text-cyan-400 ml-1"></i> מרחב משחק תלת-ממדי מורחב</h4>
+                    <p class="text-xs text-slate-400 leading-relaxed">המטקה שלך לא מוגבלת רק לתנועה ימינה ושמאלה! תוכל לנוע בחופשיות קדימה ואחורה (עומק) כדי לתכנן חבטות רחוקות או קרובות לשולחן.</p>
+                </div>
+
+                <div>
+                    <h4 class="font-bold text-white mb-1"><i class="fa-solid fa-arrows-to-eye text-cyan-400 ml-1"></i> קריאת עומק וצל</h4>
+                    <p class="text-xs text-slate-400 leading-relaxed">הסתכל על הצל הדינמי שמתחת לכדור. ככל שהכדור מתקרב לחלק התחתון של השולחן (אליך), הצל הופך לממוקד יותר – זה הזמן שלך להזיז את המטקה ולפגוע!</p>
+                </div>
+
+                <div>
+                    <h4 class="font-bold text-white mb-1"><i class="fa-solid fa-fire text-orange-500 ml-1"></i> מכת סמאש (Smash Shot)</h4>
+                    <p class="text-xs text-slate-400 leading-relaxed">כאשר הכדור עולה גבוה מעל השולחן, **לחץ על העכבר (או גע במסך)** בדיוק ברגע החבטה. הכדור יקבל תאוצה פסיכית, שובל אש, ויטוס בזווית חדה לקצה השולחן!</p>
+                </div>
+            </div>
+
+            <div class="p-4 bg-slate-950/40 border-t border-slate-800 flex justify-end">
+                <button onclick="toggleModal('helpModal')" class="bg-orange-500 text-slate-950 font-bold px-6 py-2 rounded-xl text-sm hover:brightness-110">
+                    הבנתי, בוא נתחיל!
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let synth, noiseSynth, tableSynth;
+        let isAudioInit = false;
+
+        function initToneAudio() {
+            if (isAudioInit) return;
+            try {
+                if (typeof Tone === 'undefined') return;
+                Tone.start(); // Must be called inside a user gesture
+
+                // 1. Paddle hit: retro high wood pop sound
+                synth = new Tone.MonoSynth({
+                    oscillator: { type: "sine" },
+                    envelope: { attack: 0.002, decay: 0.05, sustain: 0, release: 0.05 }
+                }).toDestination();
+                synth.volume.value = -3;
+
+                // 2. Table hit: slightly lower, wooden hollow "thump"
+                tableSynth = new Tone.MonoSynth({
+                    oscillator: { type: "triangle" },
+                    envelope: { attack: 0.005, decay: 0.08, sustain: 0, release: 0.08 }
+                }).toDestination();
+                tableSynth.volume.value = -1;
+
+                // 3. Smash noise blast
+                noiseSynth = new Tone.NoiseSynth({
+                    noise: { type: 'pink' },
+                    envelope: { attack: 0.001, decay: 0.15, release: 0.1 }
+                }).toDestination();
+                noiseSynth.volume.value = -12;
+
+                isAudioInit = true;
+            } catch(e) {
+                console.warn("Audio initialization error:", e);
+            }
+        }
+
+        function playSound(type) {
+            if (!isAudioInit) return; // Only play after user has started game
+            try {
+                if (type === 'paddle-hit') {
+                    synth.triggerAttackRelease("A4", "16n");
+                } else if (type === 'table-hit') {
+                    tableSynth.triggerAttackRelease("E3", "16n");
+                } else if (type === 'smash') {
+                    noiseSynth.triggerAttack();
+                    synth.triggerAttackRelease("D5", "8n");
+                } else if (type === 'score') {
+                    synth.triggerAttackRelease("C5", "8n");
+                }
+            } catch(e) {}
+        }
+        function playCrowdReact(playerScored) {
+            if (!isAudioInit) return;
+            try {
+                if (playerScored) {
+                    // Cheer - ascending arpeggio
+                    const times = [0, 0.07, 0.14, 0.21];
+                    const notes = ['C5','E5','G5','C6'];
+                    times.forEach((t, i) => {
+                        setTimeout(() => {
+                            synth.triggerAttackRelease(notes[i], '16n');
+                        }, t * 1000);
+                    });
+                } else {
+                    // Groan - descending
+                    const times = [0, 0.1];
+                    const notes = ['G4','E4'];
+                    times.forEach((t, i) => {
+                        setTimeout(() => {
+                            tableSynth.triggerAttackRelease(notes[i], '8n');
+                        }, t * 1000);
+                    });
+                }
+            } catch(e) {}
+        }
+
+        function playCrowdOoh() {
+            if (!isAudioInit) return;
+            try {
+                noiseSynth.triggerAttack();
+                setTimeout(() => { noiseSynth.triggerRelease(); }, 200);
+            } catch(e) {}
+        }
+    </script>
+
+    <script>
+        let gameState = {
+            coins: 150,
+            tableColor: 'olympicBlue',
+            env: 'classicGym',
+            highScore: 0,
+            purchasedSkins: ['orangeClassic'],
+            purchasedPaddleSkins: ['proClassic'],
+            activeBallSkin: 'orangeClassic',
+            activePaddleSkin: 'proClassic'
+        };
+
+        function loadGameData() {
+            try {
+                const saved = localStorage.getItem('pingpong_3d_state_v2');
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    gameState = { 
+                        coins: parsed.coins ?? 150,
+                        tableColor: parsed.tableColor ?? 'olympicBlue',
+                        env: parsed.env ?? 'classicGym',
+                        highScore: parsed.highScore ?? 0,
+                        purchasedSkins: parsed.purchasedSkins || ['orangeClassic'],
+                        purchasedPaddleSkins: parsed.purchasedPaddleSkins || ['proClassic'],
+                        activeBallSkin: parsed.activeBallSkin || 'orangeClassic',
+                        activePaddleSkin: parsed.activePaddleSkin || 'proClassic'
+                    };
+                }
+            } catch(e) {
+                console.warn("localStorage block guarded. Using active memory state.");
+            }
+            updateHUD();
+            applyThemeConfig();
+        }
+
+        function saveGameData() {
+            try {
+                localStorage.setItem('pingpong_3d_state_v2', JSON.stringify(gameState));
+            } catch(e) {
+                // localstorage access is blocked - fall back silently
+            }
+            updateHUD();
+        }
+
+        function updateHUD() {
+            const displayVal = Math.floor(gameState.coins);
+            document.getElementById('coinCount').textContent = displayVal;
+            document.querySelectorAll('.wallet-coins').forEach(el => el.textContent = displayVal);
+        }
+
+        function applyThemeConfig() {
+            setTableColor(gameState.tableColor, false);
+            setEnv(gameState.env, false);
+        }
+    </script>
+
+    <script>
+        const canvas = document.getElementById('pingPongCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Virtual 3D environment sizes
+        const V_WIDTH = 500;
+        const V_DEPTH = 600;
+        
+        let scaleX = 1;
+        let scaleY = 1;
+
+        // Enlarged Physics values (Ball radius increased to 13)
+        let ball = {
+            x: 0,
+            y: 0,
+            z: 20,
+            vx: 0,
+            vy: 4,
+            vz: 4,
+            radius: 13, 
+            gravity: 0.15,
+            trail: []
+        };
+
+        // Paddle details (Player: Near end, AI: Far end)
+        let player = {
+            x: 0,
+            y: 300, 
+            z: 20,
+            width: 76,
+            height: 76,
+            score: 0,
+            targetX: 0,
+            targetY: 300, 
+            targetZ: 10,
+            swingTimer: 0,
+            tilt: 0
+        };
+
+        let ai = {
+            x: 0,
+            y: -280,
+            z: 20,
+            width: 60,
+            height: 60,
+            score: 0,
+            speed: 3.5,
+            reactionDelay: 0, 
+            swingTimer: 0
+        };
+
+        let isRunning = false;
+        let isPaused = false;
+        let diffLevel = 'medium';
+
+        let particles = [];
+        let screenShake = 0;
+
+        // Customization colors and models
+        const themes = {
+            classicGreen: { primary: '#047857', border: '#ffffff', line: '#ffffff' },
+            olympicBlue: { primary: '#0369a1', border: '#ffffff', line: '#ffffff' },
+            cyberPink: { primary: '#be185d', border: '#00f0ff', line: '#00f0ff' }
+        };
+
+        const environmentBg = {
+            classicGym: 'from-[#0f172a] via-[#090d16] to-[#020617]',
+            cyberStadium: 'from-[#1e1035] via-[#0a0518] to-[#010103]',
+            darkMinimal: 'from-[#0d0d0d] via-[#050505] to-[#000000]'
+        };
+
+        // Serve mechanic state management
+        // serveState can be: 'none', 'player_ready', 'player_tossed', 'ai_ready', 'ai_tossed'
+        let serveState = 'player_ready'; 
+        let serveTimer = 0;
+        let servingPlayer = 'player'; // 'player' or 'ai'
+
+        // Skins catalogs
+        const ballSkins = {
+            orangeClassic: { name: 'כתום קלאסי', color: '#f97316', shadow: '#fb923c', price: 0 },
+            neonCyan: { name: 'פולס ניאון', color: '#06b6d4', shadow: '#22d3ee', price: 80 },
+            goldRush: { name: 'זהב מלכותי', color: '#eab308', shadow: '#facc15', price: 180 },
+            magmaFire: { name: 'כדור אש', color: '#ef4444', shadow: '#f97316', price: 300, trailColor: '#dc2626' }
+        };
+
+        const paddleSkins = {
+            proClassic: { name: 'עץ מקצועי', rubberColor: '#ef4444', backingColor: '#1e293b', handleColor: '#b45309', price: 0, quality: 'רגיל' },
+            cyberNeon: { name: 'סייברפאנק', rubberColor: '#d946ef', backingColor: '#06b6d4', handleColor: '#4f46e5', price: 100, quality: 'מעולה' },
+            toxicGreen: { name: 'טוקסיק ירוק', rubberColor: '#22c55e', backingColor: '#0f172a', handleColor: '#15803d', price: 200, quality: 'מעולה' },
+            royalGold: { name: 'אליפות מזהב', rubberColor: '#eab308', backingColor: '#451a03', handleColor: '#ca8a04', price: 400, quality: 'אקוטי' },
+            // === PREMIUM ACOUSTIC / WOODEN PADDLES ===
+            butterfly: { name: 'באטרפליי אקוטי', rubberColor: '#dc2626', backingColor: '#7c2d12', handleColor: '#92400e', price: 550, quality: 'אקוטי', acoustic: true, speedBonus: 0.12 },
+            stiga: { name: 'סטיגה פרו עץ', rubberColor: '#1d4ed8', backingColor: '#713f12', handleColor: '#a16207', price: 650, quality: 'אקוטי', acoustic: true, speedBonus: 0.15 },
+            donic: { name: 'דוניק פאנתר', rubberColor: '#7c3aed', backingColor: '#1e1b4b', handleColor: '#4c1d95', price: 800, quality: 'אקוטי', acoustic: true, speedBonus: 0.18 },
+            tibhar: { name: 'טיבהאר חומסריכ 5', rubberColor: '#ea580c', backingColor: '#431407', handleColor: '#78350f', price: 1000, quality: 'אגדי', acoustic: true, speedBonus: 0.25 }
+        };
+
+        // Serve counter for switching server every 5 serves
+        let serveCount = 0;
+        let totalServesInGame = 0;
+
+        // Dynamic difficulty scaling - increases with each point
+        let difficultyBonus = 0; // Added to AI speed per point scored
+
+        let currentShopTab = 'balls';
+
+        function project(x, y, z) {
+            const camY = 430;
+            const camZ = 170;
+            const fov = 370;
+
+            const dy = camY - y;
+            const dz = camZ - z;
+
+            const scale = fov / Math.max(1, dy);
+            
+            const screenX = canvas.width / 2 + x * scale;
+            const screenY = canvas.height * 0.65 - (z - camZ * (y / camY)) * scale;
+
+            return { x: screenX, y: screenY, scale: scale };
+        }
+    </script>
+
+    <script>
+        function handleResize() {
+            const parent = document.getElementById('canvasParent');
+            if (!parent || !canvas) return;
+            const rect = parent.getBoundingClientRect();
+            
+            canvas.width = rect.width || 800;
+            canvas.height = rect.height || 500;
+        }
+
+        window.addEventListener('resize', handleResize);
+
+        function handleInput(clientX, clientY) {
+            if (!canvas) return;
+            const rect = canvas.getBoundingClientRect();
+            const relX = clientX - rect.left;
+            const relY = clientY - rect.top;
+
+            const pX = (relX - canvas.width / 2) / (canvas.width / 500);
+            const pZ = Math.max(0, Math.min(120, (canvas.height * 0.85 - relY) / (canvas.height / 150)));
+            const depthFactor = 260 + (1 - (relY / canvas.height)) * 80;
+
+            player.targetX = Math.max(-250, Math.min(250, pX)); 
+            player.targetZ = pZ;
+            player.targetY = Math.max(260, Math.min(340, depthFactor)); 
+        }
+
+        canvas.addEventListener('mousemove', (e) => {
+            handleInput(e.clientX, e.clientY);
+        });
+
+        canvas.addEventListener('touchmove', (e) => {
+            if (e.touches && e.touches.length > 0) {
+                handleInput(e.touches[0].clientX, e.touches[0].clientY);
+                if (e.cancelable) e.preventDefault();
+            }
+        }, { passive: false });
+
+        // Toss & Serve / Strike detection on Click or Touch
+        canvas.addEventListener('mousedown', () => {
+            triggerAction();
+        });
+
+        canvas.addEventListener('touchstart', (e) => {
+            triggerAction();
+        });
+
+        function triggerAction() {
+            if (!isRunning || isPaused) return;
+
+            // Serve toss action
+            if (serveState === 'player_ready') {
+                serveState = 'player_tossed';
+                ball.vx = 0;
+                ball.vy = 0;
+                ball.vz = 4.2; // Toss upwards
+                playSound('table-hit');
+                return;
+            }
+
+            // Normal swing/strike action
+            player.swingTimer = 8; 
+        }
+
+        // Difficulty selector logic
+        function setDifficulty(level) {
+            diffLevel = level;
+            const difficulties = ['practice', 'easy', 'medium', 'hard', 'cyber'];
+            difficulties.forEach(l => {
+                const btn = document.getElementById(`diff-${l}`);
+                if (!btn) return;
+                if (l === level) {
+                    btn.className = "py-2 px-1 text-[11px] md:text-xs font-bold rounded-lg transition-all text-orange-500 bg-orange-500/10 border border-orange-500/20";
+                } else {
+                    btn.className = "py-2 px-1 text-[11px] md:text-xs font-bold rounded-lg transition-all text-slate-400 hover:bg-slate-800";
+                }
+            });
+
+            if (level === 'practice') {
+                ai.speed = 1.8;
+                ai.reactionDelay = 0.8; 
+            } else if (level === 'easy') {
+                ai.speed = 2.6;
+                ai.reactionDelay = 0.4;
+            } else if (level === 'medium') {
+                ai.speed = 3.8;
+                ai.reactionDelay = 0.15;
+            } else if (level === 'hard') {
+                ai.speed = 5.6;
+                ai.reactionDelay = 0.05;
+            } else if (level === 'cyber') {
+                ai.speed = 8.2;
+                ai.reactionDelay = 0.0; 
+            }
+        }
+
+        function setTableColor(colorKey, save = true) {
+            gameState.tableColor = colorKey;
+            if (save) saveGameData();
+
+            Object.keys(themes).forEach(key => {
+                const btn = document.getElementById(`table-${key}`);
+                if (!btn) return;
+                if (key === colorKey) {
+                    btn.classList.add('border-orange-500');
+                    btn.classList.remove('border-cyan-500/20', 'border-emerald-500/40', 'border-pink-500/20', 'border-slate-500/20');
+                } else {
+                    btn.classList.remove('border-orange-500');
+                }
+            });
+        }
+
+        function setEnv(envKey, save = true) {
+            gameState.env = envKey;
+            if (save) saveGameData();
+
+            const bgEl = document.getElementById('envBg');
+            if (bgEl && environmentBg[envKey]) {
+                bgEl.className = `absolute inset-0 z-0 bg-gradient-to-b ${environmentBg[envKey]} transition-all duration-700`;
+            }
+
+            Object.keys(environmentBg).forEach(key => {
+                const btn = document.getElementById(`env-${key}`);
+                if (!btn) return;
+                if (key === envKey) {
+                    btn.classList.add('border-orange-500');
+                    btn.classList.remove('border-cyan-500/20', 'border-slate-500/20', 'border-amber-500/40');
+                } else {
+                    btn.classList.remove('border-orange-500');
+                }
+            });
+        }
+
+        function toggleModal(id) {
+            const modal = document.getElementById(id);
+            if (!modal) return;
+            modal.classList.toggle('hidden');
+            if (id === 'shopModal' && !modal.classList.contains('hidden')) {
+                renderShopItems();
+            }
+        }
+    </script>
+
+    <script>
+        // Prepares serving setup
+        function setupServe(server) {
+            // Every 5 serves, switch who serves
+            totalServesInGame++;
+            if (totalServesInGame > 1) {
+                serveCount++;
+                if (serveCount >= 5) {
+                    serveCount = 0;
+                    // Switch server
+                    server = (servingPlayer === 'player') ? 'ai' : 'player';
+                    // Show serve switch notification
+                    showServeSwitch(server);
+                }
+            }
+
+            servingPlayer = server;
+            if (server === 'player') {
+                serveState = 'player_ready';
+                document.getElementById('serveAlertHUD').classList.remove('hidden');
+            } else {
+                serveState = 'ai_ready';
+                serveTimer = 90; // Delay before AI tosses
+                document.getElementById('serveAlertHUD').classList.add('hidden');
+            }
+            ball.trail = [];
+        }
+
+        function showServeSwitch(server) {
+            const el = document.getElementById('serveSwitchNotif');
+            if (!el) return;
+            el.textContent = server === 'player' ? '🏓 תורך להגיש!' : '🤖 היריב מגיש עכשיו';
+            el.style.opacity = '1';
+            el.style.transform = 'translateY(0)';
+            setTimeout(() => {
+                el.style.opacity = '0';
+                el.style.transform = 'translateY(-20px)';
+            }, 2000);
+        }
+
+        function createSparks(x, y, z, color) {
+            for (let i = 0; i < 12; i++) {
+                particles.push({
+                    x: x, y: y, z: z,
+                    vx: (Math.random() - 0.5) * 4,
+                    vy: (Math.random() - 0.5) * 4,
+                    vz: Math.random() * 4 + 1,
+                    size: Math.random() * 2.5 + 1,
+                    alpha: 1.0,
+                    color: color || '#f97316'
+                });
+            }
+        }
+
+        function activateTableBonus() {
+            gameState.coins += 1;
+            saveGameData();
+        }
+
+        function updatePhysics() {
+            if (!isRunning || isPaused) return;
+
+            const activeBallProps = ballSkins[gameState.activeBallSkin] || ballSkins['orangeClassic'];
+
+            // 1. Serving States Logic
+            if (serveState === 'player_ready') {
+                // Ball sits on player paddle waiting for toss
+                ball.x = player.x;
+                ball.y = player.y - 12;
+                ball.z = player.z + 14;
+                ball.vx = 0;
+                ball.vy = 0;
+                ball.vz = 0;
+            } else if (serveState === 'ai_ready') {
+                // Ball sits on AI paddle waiting for toss
+                ball.x = ai.x;
+                ball.y = ai.y + 12;
+                ball.z = ai.z + 14;
+                ball.vx = 0;
+                ball.vy = 0;
+                ball.vz = 0;
+
+                serveTimer--;
+                if (serveTimer <= 0) {
+                    serveState = 'ai_tossed';
+                    ball.vz = 3.8; // Toss up
+                }
+            } else if (serveState === 'ai_tossed') {
+                // AI watches the tossed ball and hits it at peak
+                ball.vz -= ball.gravity;
+                ball.z += ball.vz;
+
+                // Hit when falling back down slightly
+                if (ball.vz < 0.5 && ball.z > 15) {
+                    serveState = 'none';
+                    ball.y = ai.y + 11;
+
+                    let precision = 40;
+                    if (diffLevel === 'cyber') precision = 15;
+                    else if (diffLevel === 'practice') precision = 80;
+
+                    const targetX = player.x + (Math.random() - 0.5) * precision;
+                    ball.vx = (targetX - ball.x) * 0.015;
+
+                    let aiPowerMod = 1.0;
+                    if (diffLevel === 'cyber') aiPowerMod = 1.3;
+                    else if (diffLevel === 'practice') aiPowerMod = 0.75;
+
+                    ball.vy = (4.5 + Math.random() * 1.5) * aiPowerMod;
+                    ball.vz = (3.5 + Math.random() * 1.0) * aiPowerMod;
+
+                    playSound('paddle-hit');
+                    createSparks(ball.x, ball.y, ball.z, '#ffffff');
+                }
+            } else {
+                // Normal Gameplay physics
+                ball.vz -= ball.gravity;
+                ball.x += ball.vx;
+                ball.y += ball.vy;
+                ball.z += ball.vz;
+
+                // Add positions to trail
+                ball.trail.push({ x: ball.x, y: ball.y, z: ball.z });
+                if (ball.trail.length > 10) ball.trail.shift();
+
+                // Ball misses and falls below floor limit
+                if (ball.z < -160) {
+                    handleMissPoint();
+                }
+            }
+
+            // In player_tossed mode, gravity acts but we look for a paddle strike to activate regular gameplay
+            if (serveState === 'player_tossed') {
+                ball.vz -= ball.gravity;
+                ball.z += ball.vz;
+                
+                // If the player fails to strike and ball falls too low, reset serve
+                if (ball.z < -40) {
+                    serveState = 'player_ready';
+                }
+            }
+
+            // Intercept boundaries - BOUNCE ON TABLE SURFACE
+            const onTableX = (ball.x >= -180 && ball.x <= 180); 
+            const onTableY = (ball.y >= -280 && ball.y <= 280); 
+
+            if (ball.z <= 0 && serveState === 'none') {
+                if (onTableX && onTableY) {
+                    ball.z = 0;
+                    ball.vz = -ball.vz * 0.88; 
+                    playSound('table-hit');
+                    createSparks(ball.x, ball.y, ball.z, '#ffffff');
+
+                    if (Math.abs(ball.y) < 10) {
+                        ball.vy = -ball.vy * 0.4;
+                        ball.vx = (Math.random() - 0.5) * 3;
+                    }
+                }
+            }
+
+            // Paddle Movement Interpolations
+            player.x += (player.targetX - player.x) * 0.25;
+            player.z += (player.targetZ - player.z) * 0.25;
+            player.y += (player.targetY - player.y) * 0.25; 
+            player.tilt = (player.targetX - player.x) * 0.08;
+
+            if (player.swingTimer > 0) player.swingTimer--;
+
+            // AI tracking with dynamic difficulty bonus
+            if (ball.vy < 0 && serveState === 'none') {
+                const currentAISpeed = ai.speed + difficultyBonus;
+                if (Math.random() > Math.max(0, ai.reactionDelay - difficultyBonus * 0.01)) {
+                    const diffX = ball.x - ai.x;
+                    ai.x += Math.sign(diffX) * Math.min(currentAISpeed, Math.abs(diffX));
+                    ai.z += ((ball.z + 10) - ai.z) * 0.08;
+                }
+            }
+            ai.x = Math.max(-210, Math.min(210, ai.x));
+
+            // COLLISION CHECK: PLAYER PADDLE HIT
+            if (ball.vy >= 0 && (serveState === 'none' || serveState === 'player_tossed')) {
+                // Range check around player y depth
+                if (ball.y >= player.y - 15 && ball.y <= player.y + 25) {
+                    const distPaddleX = Math.abs(ball.x - player.x);
+                    const distPaddleZ = Math.abs(ball.z - player.z);
+
+                    if (distPaddleX < player.width / 2 && distPaddleZ < player.height / 2) {
+                        ball.y = player.y - 16;
+                        
+                        const sliceFactor = (ball.x - player.x) * 0.05;
+                        ball.vx = sliceFactor;
+
+                        if (serveState === 'player_tossed') {
+                            serveState = 'none'; // Transition to active gameplay
+                            document.getElementById('serveAlertHUD').classList.add('hidden');
+                        }
+
+                        if (player.swingTimer > 0) {
+                            const acousticBonus = (paddleSkins[gameState.activePaddleSkin]?.speedBonus || 0);
+                            ball.vy = -(8 + Math.random() * 4) * (1 + acousticBonus);
+                            ball.vz = (5 + Math.random() * 2) * (1 + acousticBonus * 0.5);
+                            playSound('smash');
+                            playCrowdOoh();
+                            screenShake = 10;
+                            createSparks(ball.x, ball.y, ball.z, '#ff4500');
+                        } else {
+                            const acousticBonus = (paddleSkins[gameState.activePaddleSkin]?.speedBonus || 0);
+                            const forwardPush = (player.targetY < player.y) ? 1.2 : 1.0;
+                            ball.vy = -(5 + Math.random() * 2) * forwardPush * (1 + acousticBonus);
+                            ball.vz = (4.5 + Math.random() * 1.5) * (1 + acousticBonus * 0.3);
+                            playSound('paddle-hit');
+                            createSparks(ball.x, ball.y, ball.z, activeBallProps.color);
+                        }
+
+                        activateTableBonus();
+                    }
+                }
+            }
+
+            // COLLISION CHECK: AI PADDLE HIT
+            if (ball.vy < 0 && ball.y <= ai.y + 10 && ball.y >= ai.y - 20 && serveState === 'none') {
+                const distPaddleX = Math.abs(ball.x - ai.x);
+                const distPaddleZ = Math.abs(ball.z - ai.z);
+
+                if (distPaddleX < ai.width / 2 && distPaddleZ < ai.height / 2) {
+                    ball.y = ai.y + 11;
+
+                    let precision = 40;
+                    if (diffLevel === 'cyber') precision = 15;
+                    else if (diffLevel === 'practice') precision = 80;
+
+                    const targetX = player.x + (Math.random() - 0.5) * precision;
+                    ball.vx = (targetX - ball.x) * 0.015;
+                    
+                    let aiPowerMod = 1.0;
+                    if (diffLevel === 'cyber') aiPowerMod = 1.35;
+                    else if (diffLevel === 'practice') aiPowerMod = 0.75;
+
+                    ball.vy = (4.8 + Math.random() * 2) * aiPowerMod;
+                    ball.vz = (4 + Math.random() * 1.5) * aiPowerMod;
+                    playSound('paddle-hit');
+                    createSparks(ball.x, ball.y, ball.z, '#ffffff');
+                }
+            }
+
+            // Decay particles
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.z += p.vz;
+                p.alpha -= 0.03;
+                if (p.alpha <= 0) {
+                    particles.splice(i, 1);
+                }
+            }
+
+            if (screenShake > 0) screenShake *= 0.88;
+        }
+
+        function handleMissPoint() {
+            if (ball.y > 0) {
+                // Player missed
+                ai.score++;
+                document.getElementById('aiScoreDisplay').textContent = ai.score;
+                playSound('score');
+                playCrowdReact(false);
+                difficultyBonus += 0.08; // AI gets slightly faster
+                if (ai.score >= 11) {
+                    triggerGameOver('ai');
+                } else {
+                    setupServe('ai'); // AI serves next
+                }
+            } else {
+                // AI missed
+                player.score++;
+                document.getElementById('playerScoreDisplay').textContent = player.score;
+                playSound('score');
+                playCrowdReact(true);
+                difficultyBonus += 0.06; // Increase difficulty too
+                
+                gameState.coins += 15;
+                saveGameData();
+
+                if (player.score >= 11) {
+                    triggerGameOver('player');
+                } else {
+                    setupServe('player'); // Player serves next
+                }
+            }
+        }
+    </script>
+
+    <script>
+        function draw3DScene() {
+            if (!ctx || !canvas) return;
+
+            // 1. Clear background
+            ctx.fillStyle = themes[gameState.tableColor].primary + '0a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.save();
+            if (screenShake > 0.5) {
+                const shakeX = (Math.random() - 0.5) * screenShake;
+                const shakeY = (Math.random() - 0.5) * screenShake;
+                ctx.translate(shakeX, shakeY);
+            }
+
+            // 2. Draw crowd/judges (behind the table)
+            drawCrowdAndJudges();
+
+            // 3. Table and decor
+            drawTableTennisTable();
+            drawTableNet();
+
+            // 4. Draw AI figure (far end)
+            drawAIFigure();
+
+            // 5. Sparks and particles
+            particles.forEach(p => {
+                const proj = project(p.x, p.y, p.z);
+                if (proj.scale > 0) {
+                    ctx.save();
+                    ctx.globalAlpha = p.alpha;
+                    ctx.fillStyle = p.color;
+                    ctx.shadowBlur = 8;
+                    ctx.shadowColor = p.color;
+                    ctx.beginPath();
+                    ctx.arc(proj.x, proj.y, p.size * proj.scale * 0.15, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
+                }
+            });
+
+            // 6. Ball Shadow & Sphere rendering
+            drawBallAndShadow();
+
+            // 7. Player and AI paddles
+            drawPaddles();
+
+            // 8. Draw player figure (near end, behind paddle)
+            drawPlayerFigure();
+
+            // 9. Difficulty meter (top right corner of canvas)
+            if (isRunning && difficultyBonus > 0.1) {
+                drawDifficultyMeter();
+            }
+
+            ctx.restore();
+        }
+
+        function drawDifficultyMeter() {
+            const level = Math.min(1.0, difficultyBonus / 2.0);
+            const x = canvas.width - 85, y = 18, w = 70, h = 9;
+            ctx.save();
+            ctx.fillStyle = 'rgba(0,0,0,0.5)';
+            ctx.fillRect(x, y, w, h);
+            const grad = ctx.createLinearGradient(x, y, x + w, y);
+            grad.addColorStop(0, '#22c55e');
+            grad.addColorStop(0.5, '#f97316');
+            grad.addColorStop(1, '#ef4444');
+            ctx.fillStyle = grad;
+            ctx.fillRect(x, y, w * level, h);
+            ctx.fillStyle = 'rgba(255,255,255,0.65)';
+            ctx.font = 'bold 9px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('⚡ קושי', x + w / 2, y - 3);
+            ctx.restore();
+        }
+
+        function drawTableTennisTable() {
+            const corner1 = project(-180, -280, 0); 
+            const corner2 = project(180, -280, 0);  
+            const corner3 = project(180, 280, 0);   
+            const corner4 = project(-180, 280, 0);  
+
+            const theme = themes[gameState.tableColor];
+
+            // Draw table legs first (behind table)
+            drawTableLeg(-170, -270);
+            drawTableLeg(170, -270);
+            drawTableLeg(170, 270);
+            drawTableLeg(-170, 270);
+
+            // Draw support beam under table
+            const beam1L = project(-178, -280, -30);
+            const beam1R = project(178, -280, -30);
+            const beam2L = project(-178, 280, -30);
+            const beam2R = project(178, 280, -30);
+            ctx.strokeStyle = '#1e293b';
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.moveTo(beam1L.x, beam1L.y);
+            ctx.lineTo(beam1R.x, beam1R.y);
+            ctx.moveTo(beam2L.x, beam2L.y);
+            ctx.lineTo(beam2R.x, beam2R.y);
+            ctx.stroke();
+
+            // Thickness (side panel with wood grain look)
+            const thickGrad = ctx.createLinearGradient(corner1.x, corner1.y, corner4.x, corner4.y);
+            thickGrad.addColorStop(0, '#0f172a');
+            thickGrad.addColorStop(0.5, '#1e293b');
+            thickGrad.addColorStop(1, '#0f172a');
+            ctx.fillStyle = thickGrad;
+            ctx.beginPath();
+            ctx.moveTo(corner1.x, corner1.y);
+            ctx.lineTo(corner2.x, corner2.y);
+            ctx.lineTo(corner3.x, corner3.y + 10);
+            ctx.lineTo(corner4.x, corner4.y + 10);
+            ctx.closePath();
+            ctx.fill();
+
+            // White edge stripe on thickness
+            ctx.strokeStyle = '#ffffff44';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(corner1.x, corner1.y + 3);
+            ctx.lineTo(corner2.x, corner2.y + 3);
+            ctx.stroke();
+
+            // Main playing surface with gradient
+            const surfGrad = ctx.createLinearGradient(corner4.x, corner4.y, corner1.x, corner1.y);
+            surfGrad.addColorStop(0, theme.primary);
+            surfGrad.addColorStop(0.35, lightenColor(theme.primary, 0.2));
+            surfGrad.addColorStop(0.65, theme.primary);
+            surfGrad.addColorStop(1, darkenColor(theme.primary, 0.15));
+            ctx.fillStyle = surfGrad;
+            ctx.beginPath();
+            ctx.moveTo(corner1.x, corner1.y);
+            ctx.lineTo(corner2.x, corner2.y);
+            ctx.lineTo(corner3.x, corner3.y);
+            ctx.lineTo(corner4.x, corner4.y);
+            ctx.closePath();
+            ctx.fill();
+
+            // Surface wood grain lines (subtle)
+            ctx.save();
+            ctx.globalAlpha = 0.04;
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 1;
+            for (let i = -170; i <= 170; i += 22) {
+                const gL = project(i, -280, 0);
+                const gR = project(i, 280, 0);
+                ctx.beginPath();
+                ctx.moveTo(gL.x, gL.y);
+                ctx.lineTo(gR.x, gR.y);
+                ctx.stroke();
+            }
+            ctx.restore();
+
+            // White border lines on edges
+            ctx.strokeStyle = theme.border;
+            ctx.lineWidth = 3.5; 
+            ctx.beginPath();
+            ctx.moveTo(corner1.x, corner1.y);
+            ctx.lineTo(corner2.x, corner2.y);
+            ctx.lineTo(corner3.x, corner3.y);
+            ctx.lineTo(corner4.x, corner4.y);
+            ctx.closePath();
+            ctx.stroke();
+
+            // End lines (white thick lines at each end)
+            const endFarL = project(-180, -278, 0);
+            const endFarR = project(180, -278, 0);
+            const endNearL = project(-180, 278, 0);
+            const endNearR = project(180, 278, 0);
+            ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+            ctx.lineWidth = 2.5;
+            ctx.beginPath();
+            ctx.moveTo(endFarL.x, endFarL.y);
+            ctx.lineTo(endFarR.x, endFarR.y);
+            ctx.moveTo(endNearL.x, endNearL.y);
+            ctx.lineTo(endNearR.x, endNearR.y);
+            ctx.stroke();
+
+            // Center dividing line (longitudinal)
+            const centerFar = project(0, -280, 0);
+            const centerNear = project(0, 280, 0);
+            ctx.strokeStyle = theme.line;
+            ctx.lineWidth = 1.8;
+            ctx.setLineDash([]);
+            ctx.beginPath();
+            ctx.moveTo(centerFar.x, centerFar.y);
+            ctx.lineTo(centerNear.x, centerNear.y);
+            ctx.stroke();
+
+            // Center horizontal line (net centerline on surface)
+            const midL = project(-180, 0, 0);
+            const midR = project(180, 0, 0);
+            ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+            ctx.lineWidth = 1.2;
+            ctx.beginPath();
+            ctx.moveTo(midL.x, midL.y);
+            ctx.lineTo(midR.x, midR.y);
+            ctx.stroke();
+
+            // Surface sheen (highlight strip)
+            ctx.save();
+            ctx.globalAlpha = 0.07;
+            const sheenGrad = ctx.createLinearGradient(corner2.x, corner2.y, corner3.x, corner3.y);
+            sheenGrad.addColorStop(0, 'transparent');
+            sheenGrad.addColorStop(0.3, '#ffffff');
+            sheenGrad.addColorStop(0.7, '#ffffff');
+            sheenGrad.addColorStop(1, 'transparent');
+            ctx.fillStyle = sheenGrad;
+            ctx.beginPath();
+            const sheenP1 = project(80, -280, 0);
+            const sheenP2 = project(140, -280, 0);
+            const sheenP3 = project(140, 280, 0);
+            const sheenP4 = project(80, 280, 0);
+            ctx.moveTo(sheenP1.x, sheenP1.y);
+            ctx.lineTo(sheenP2.x, sheenP2.y);
+            ctx.lineTo(sheenP3.x, sheenP3.y);
+            ctx.lineTo(sheenP4.x, sheenP4.y);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+        }
+
+        function lightenColor(hex, amount) {
+            try {
+                const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+                return `rgb(${Math.min(255,r+Math.round(amount*255))},${Math.min(255,g+Math.round(amount*255))},${Math.min(255,b+Math.round(amount*255))})`;
+            } catch(e) { return hex; }
+        }
+        function darkenColor(hex, amount) {
+            try {
+                const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+                return `rgb(${Math.max(0,r-Math.round(amount*255))},${Math.max(0,g-Math.round(amount*255))},${Math.max(0,b-Math.round(amount*255))})`;
+            } catch(e) { return hex; }
+        }
+
+        // --- CROWD OF JUDGES ---
+        function drawCrowdAndJudges() {
+            // Left side crowd
+            drawJudge(-320, -180, '#e2e8f0', '#1e40af', false, 'שופט 1');
+            drawJudge(-320, 0, '#fbbf24', '#7c3aed', false, 'שופט 2');
+            drawJudge(-320, 180, '#f87171', '#0f172a', false, 'שופט 3');
+
+            // Right side crowd  
+            drawJudge(320, -180, '#86efac', '#1e3a2f', true, 'קהל');
+            drawJudge(320, 0, '#c4b5fd', '#2d1b69', true, 'קהל');
+            drawJudge(320, 180, '#fdba74', '#431407', true, 'קהל');
+        }
+
+        function drawJudge(worldX, worldY, shirtColor, pantsColor, isRight, label) {
+            // Project judge position (they stand next to the table, slightly elevated)
+            const bodyBase = project(worldX, worldY, 0);
+            const bodyTop = project(worldX, worldY, 90);
+            if (bodyBase.scale <= 0) return;
+
+            const scale = bodyBase.scale * 0.18;
+
+            ctx.save();
+            ctx.translate(bodyBase.x, bodyBase.y);
+
+            const h = (bodyTop.y - bodyBase.y); // height in screen pixels
+            const w = scale * 14;
+
+            // Legs
+            ctx.fillStyle = pantsColor;
+            ctx.fillRect(-w * 0.3, h * 0.35, w * 0.25, -h * 0.4);
+            ctx.fillRect(w * 0.05, h * 0.35, w * 0.25, -h * 0.4);
+
+            // Feet
+            ctx.fillStyle = '#1c1917';
+            ctx.fillRect(-w * 0.3, h * 0.35, w * 0.28, Math.abs(h) * 0.07);
+            ctx.fillRect(w * 0.05, h * 0.35, w * 0.28, Math.abs(h) * 0.07);
+
+            // Body / shirt
+            ctx.fillStyle = shirtColor;
+            ctx.fillRect(-w * 0.4, h * 0.35, w * 0.8, h * 0.5);
+
+            // Left arm (animated slightly)
+            const armAngle = Math.sin(Date.now() * 0.002 + worldY * 0.01) * 0.2;
+            ctx.save();
+            ctx.translate(-w * 0.4, h * 0.55);
+            ctx.rotate(armAngle);
+            ctx.fillStyle = shirtColor;
+            ctx.fillRect(-w * 0.12, 0, w * 0.15, h * 0.3);
+            ctx.restore();
+
+            // Right arm
+            ctx.save();
+            ctx.translate(w * 0.4, h * 0.55);
+            ctx.rotate(-armAngle);
+            ctx.fillStyle = shirtColor;
+            ctx.fillRect(-w * 0.03, 0, w * 0.15, h * 0.3);
+            ctx.restore();
+
+            // Neck
+            ctx.fillStyle = '#d97706';
+            ctx.fillRect(-w * 0.1, h * 0.7, w * 0.2, h * 0.1);
+
+            // Head
+            ctx.fillStyle = '#fde68a';
+            ctx.beginPath();
+            ctx.arc(0, h * 0.82, w * 0.22, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Eyes
+            ctx.fillStyle = '#1c1917';
+            ctx.beginPath();
+            ctx.arc(-w * 0.07, h * 0.81, w * 0.04, 0, Math.PI * 2);
+            ctx.arc(w * 0.07, h * 0.81, w * 0.04, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Hair
+            ctx.fillStyle = '#1c1917';
+            ctx.beginPath();
+            ctx.arc(0, h * 0.87, w * 0.22, Math.PI, 0);
+            ctx.fill();
+
+            ctx.restore();
+        }
+
+        // --- PLAYER FIGURE (human body behind the paddle) ---
+        function drawPlayerFigure() {
+            // Draw a stick-figure human behind the player's paddle
+            const bodyY = player.y + 80; // Behind the paddle
+            const bodyBase = project(player.x, bodyY, 0);
+            const bodyTop = project(player.x, bodyY, 110);
+            if (bodyBase.scale <= 0) return;
+
+            const h = Math.abs(bodyTop.y - bodyBase.y);
+            const w = bodyBase.scale * 0.18 * 14;
+
+            ctx.save();
+            ctx.translate(bodyBase.x, bodyBase.y);
+
+            // Legs (animated walking-like stance)
+            const legSwing = Math.sin(Date.now() * 0.004) * 0.15;
+            ctx.fillStyle = '#1e293b';
+            // Left leg
+            ctx.save();
+            ctx.translate(-w * 0.2, h * 0.05);
+            ctx.rotate(legSwing);
+            ctx.fillRect(-w * 0.13, 0, w * 0.26, h * 0.42);
+            ctx.restore();
+            // Right leg
+            ctx.save();
+            ctx.translate(w * 0.2, h * 0.05);
+            ctx.rotate(-legSwing);
+            ctx.fillRect(-w * 0.13, 0, w * 0.26, h * 0.42);
+            ctx.restore();
+
+            // Shoes
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(-w * 0.35, h * 0.45, w * 0.32, h * 0.09);
+            ctx.fillRect(w * 0.05, h * 0.45, w * 0.32, h * 0.09);
+
+            // Body / shirt (player color - orange)
+            const bodyGrad = ctx.createLinearGradient(-w*0.45, h*0.05, w*0.45, h*0.05);
+            bodyGrad.addColorStop(0, '#ea580c');
+            bodyGrad.addColorStop(0.5, '#f97316');
+            bodyGrad.addColorStop(1, '#ea580c');
+            ctx.fillStyle = bodyGrad;
+            ctx.fillRect(-w * 0.42, -h * 0.55, w * 0.84, h * 0.6);
+
+            // Arms (one extended toward paddle)
+            const armAngle = -0.4 + Math.sin(Date.now() * 0.003) * 0.1;
+            // Paddle arm
+            ctx.save();
+            ctx.translate(w * 0.42, -h * 0.35);
+            ctx.rotate(armAngle);
+            ctx.fillStyle = '#ea580c';
+            ctx.fillRect(0, 0, w * 0.18, h * 0.38);
+            // Wrist / hand
+            ctx.fillStyle = '#fde68a';
+            ctx.beginPath();
+            ctx.arc(w * 0.09, h * 0.38, w * 0.1, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+
+            // Other arm (out for balance)
+            ctx.save();
+            ctx.translate(-w * 0.42, -h * 0.35);
+            ctx.rotate(0.5);
+            ctx.fillStyle = '#ea580c';
+            ctx.fillRect(-w * 0.18, 0, w * 0.18, h * 0.35);
+            ctx.restore();
+
+            // Neck
+            ctx.fillStyle = '#fde68a';
+            ctx.fillRect(-w * 0.1, -h * 0.67, w * 0.2, h * 0.12);
+
+            // Head
+            ctx.fillStyle = '#fde68a';
+            ctx.beginPath();
+            ctx.arc(0, -h * 0.82, w * 0.28, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Eyes (looking up at ball)
+            ctx.fillStyle = '#1c1917';
+            ctx.beginPath();
+            ctx.arc(-w * 0.09, -h * 0.83, w * 0.05, 0, Math.PI * 2);
+            ctx.arc(w * 0.09, -h * 0.83, w * 0.05, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Hair
+            ctx.fillStyle = '#1c1917';
+            ctx.beginPath();
+            ctx.arc(0, -h * 0.88, w * 0.28, Math.PI, 0);
+            ctx.fill();
+
+            // Headband (sporty)
+            ctx.fillStyle = '#f97316';
+            ctx.fillRect(-w * 0.28, -h * 0.88, w * 0.56, h * 0.06);
+
+            // Label "שחקן"
+            ctx.fillStyle = 'rgba(249,115,22,0.85)';
+            ctx.font = `bold ${Math.max(8, w * 0.5)}px Heebo,sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.fillText('שחקן', 0, -h * 1.0);
+
+            ctx.restore();
+        }
+
+        // --- AI FIGURE ---
+        function drawAIFigure() {
+            const bodyY = ai.y - 80;
+            const bodyBase = project(ai.x, bodyY, 0);
+            const bodyTop = project(ai.x, bodyY, 100);
+            if (bodyBase.scale <= 0) return;
+
+            const h = Math.abs(bodyTop.y - bodyBase.y);
+            const w = bodyBase.scale * 0.18 * 12;
+
+            ctx.save();
+            ctx.translate(bodyBase.x, bodyBase.y);
+
+            // Body (AI - white/silver robot feel)
+            ctx.fillStyle = '#334155';
+            ctx.fillRect(-w * 0.4, -h * 0.5, w * 0.8, h * 0.55);
+
+            // AI chest panel glow
+            ctx.fillStyle = '#0ea5e940';
+            ctx.fillRect(-w * 0.2, -h * 0.38, w * 0.4, h * 0.25);
+
+            // Legs
+            ctx.fillStyle = '#1e293b';
+            ctx.fillRect(-w * 0.32, 0, w * 0.25, h * 0.4);
+            ctx.fillRect(w * 0.07, 0, w * 0.25, h * 0.4);
+
+            // Arm (toward paddle)
+            ctx.save();
+            ctx.translate(-w * 0.4, -h * 0.3);
+            ctx.rotate(-0.5);
+            ctx.fillStyle = '#334155';
+            ctx.fillRect(-w * 0.14, 0, w * 0.14, h * 0.35);
+            ctx.restore();
+
+            // Neck
+            ctx.fillStyle = '#475569';
+            ctx.fillRect(-w * 0.1, -h * 0.6, w * 0.2, h * 0.1);
+
+            // Head (robot-ish)
+            ctx.fillStyle = '#1e293b';
+            ctx.fillRect(-w * 0.28, -h * 0.88, w * 0.56, h * 0.28);
+
+            // Glowing eyes
+            ctx.shadowBlur = 8;
+            ctx.shadowColor = '#06b6d4';
+            ctx.fillStyle = '#06b6d4';
+            ctx.beginPath();
+            ctx.arc(-w * 0.1, -h * 0.76, w * 0.07, 0, Math.PI * 2);
+            ctx.arc(w * 0.1, -h * 0.76, w * 0.07, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+
+            // AI label
+            ctx.fillStyle = 'rgba(6,182,212,0.85)';
+            ctx.font = `bold ${Math.max(8, w * 0.5)}px Heebo,sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.fillText('AI', 0, -h * 0.92);
+
+            ctx.restore();
+        }
+
+        function drawTableLeg(x, y) {
+            const p1 = project(x, y, 0);
+            const p2 = project(x, y, -120);
+            ctx.strokeStyle = '#1e293b';
+            ctx.lineWidth = 7; 
+            ctx.beginPath();
+            ctx.moveTo(p1.x, p1.y);
+            ctx.lineTo(p2.x, p2.y);
+            ctx.stroke();
+        }
+
+        function drawTableNet() {
+            const netLeft = project(-195, 0, 0);
+            const netLeftTop = project(-195, 0, 22);
+            const netRight = project(195, 0, 0);
+            const netRightTop = project(195, 0, 22);
+
+            ctx.strokeStyle = '#334155';
+            ctx.lineWidth = 5;
+            ctx.beginPath();
+            ctx.moveTo(netLeft.x, netLeft.y);
+            ctx.lineTo(netLeftTop.x, netLeftTop.y);
+            ctx.moveTo(netRight.x, netRight.y);
+            ctx.lineTo(netRightTop.x, netRightTop.y);
+            ctx.stroke();
+
+            ctx.save();
+            ctx.globalAlpha = 0.45;
+            ctx.fillStyle = '#0f172a';
+            ctx.beginPath();
+            ctx.moveTo(netLeft.x, netLeft.y);
+            ctx.lineTo(netLeftTop.x, netLeftTop.y);
+            ctx.lineTo(netRightTop.x, netRightTop.y);
+            ctx.lineTo(netRight.x, netRight.y);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2;
+            ctx.globalAlpha = 0.9;
+            ctx.beginPath();
+            ctx.moveTo(netLeftTop.x, netLeftTop.y);
+            ctx.lineTo(netRightTop.x, netRightTop.y);
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        function drawBallAndShadow() {
+            const activeBallProps = ballSkins[gameState.activeBallSkin] || ballSkins['orangeClassic'];
+
+            // Ball Shadow on table (z=0)
+            const shadowProj = project(ball.x, ball.y, 0);
+            if (ball.y >= -280 && ball.y <= 280 && ball.x >= -180 && ball.x <= 180) {
+                ctx.save();
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+                ctx.beginPath();
+                const shadowRadius = Math.max(1, (ball.radius - ball.z * 0.05) * shadowProj.scale * 0.16);
+                ctx.ellipse(shadowProj.x, shadowProj.y, shadowRadius * 1.6, shadowRadius, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+
+            // Draw sphere Ball
+            const ballProj = project(ball.x, ball.y, ball.z);
+            if (ballProj.scale > 0) {
+                ctx.save();
+                ctx.shadowBlur = 12;
+                ctx.shadowColor = activeBallProps.shadow;
+                
+                const size = ball.radius * ballProj.scale * 0.16;
+
+                // Fire / Magma trail
+                if (activeBallProps.trailColor && ball.vy < -3) {
+                    ctx.save();
+                    ctx.globalAlpha = 0.4;
+                    ctx.fillStyle = activeBallProps.trailColor;
+                    ctx.beginPath();
+                    ctx.arc(ballProj.x + (ball.vx * -1.8), ballProj.y + 4, size * 1.2, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
+                }
+
+                // Ball Main Paint
+                ctx.fillStyle = activeBallProps.color; 
+                ctx.beginPath();
+                ctx.arc(ballProj.x, ballProj.y, size, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Gloss Highlight shine
+                ctx.fillStyle = 'rgba(255,255,255,0.45)';
+                ctx.beginPath();
+                ctx.arc(ballProj.x - size * 0.3, ballProj.y - size * 0.3, size * 0.3, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.restore();
+            }
+        }
+
+        function drawPaddles() {
+            const activePaddleProps = paddleSkins[gameState.activePaddleSkin] || paddleSkins['proClassic'];
+
+            // 1. Render AI Paddle (Uses classic colors to contrast)
+            const aiProj = project(ai.x, ai.y, ai.z);
+            if (aiProj.scale > 0) {
+                const pSize = ai.width * aiProj.scale * 0.14;
+                // AI gets opposite design for visual distinction
+                drawRacket(aiProj.x, aiProj.y, pSize, '#1e293b', '#ef4444', '#78350f', 0);
+            }
+
+            // 2. Render Player Paddle
+            const playerProj = project(player.x, player.y, player.z);
+            if (playerProj.scale > 0) {
+                const pSize = player.width * playerProj.scale * 0.14;
+                drawRacket(playerProj.x, playerProj.y, pSize, activePaddleProps.rubberColor, activePaddleProps.backingColor, activePaddleProps.handleColor, player.tilt);
+            }
+        }
+
+        // Draw racket shape with customized colors
+        function drawRacket(x, y, radius, rubberColor, backingColor, handleColor, tilt) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(tilt);
+
+            // Handle shadow
+            ctx.fillStyle = 'rgba(0,0,0,0.2)';
+            ctx.fillRect(-radius * 0.15 + 4, 2, radius * 0.3, radius * 1.1);
+
+            // 1. Draw Handle
+            const handleGrad = ctx.createLinearGradient(-radius * 0.15, 0, radius * 0.15, 0);
+            handleGrad.addColorStop(0, handleColor);
+            handleGrad.addColorStop(0.5, '#ffffff20');
+            handleGrad.addColorStop(1, handleColor);
+            ctx.fillStyle = handleGrad;
+            ctx.fillRect(-radius * 0.15, 0, radius * 0.3, radius * 1.1);
+
+            // Wooden handle cap
+            ctx.fillStyle = 'rgba(0,0,0,0.3)';
+            ctx.fillRect(-radius * 0.18, radius * 1.05, radius * 0.36, radius * 0.1);
+
+            // 2. Draw Wooden Rim
+            ctx.fillStyle = '#d97706';
+            ctx.beginPath();
+            ctx.arc(0, -radius * 0.45, radius, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 3. Draw Rubber backing layer
+            ctx.fillStyle = backingColor;
+            ctx.beginPath();
+            ctx.arc(0, -radius * 0.45, radius * 0.95, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 4. Draw Rubber Face
+            ctx.fillStyle = rubberColor;
+            ctx.beginPath();
+            ctx.arc(0, -radius * 0.45, radius * 0.9, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Shininess glint on Rubber
+            ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(0, -radius * 0.45, radius * 0.75, Math.PI, Math.PI * 1.5);
+            ctx.stroke();
+
+            ctx.restore();
+        }
+    </script>
+
+    <script>
+        function switchShopTab(tab) {
+            currentShopTab = tab;
+            const tabBalls = document.getElementById('tab-balls');
+            const tabPaddles = document.getElementById('tab-paddles');
+            const tabAcoustic = document.getElementById('tab-acoustic');
+
+            tabBalls.className = "flex-1 py-3 text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-slate-300 transition-all";
+            tabPaddles.className = "flex-1 py-3 text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-slate-300 transition-all";
+            tabAcoustic.className = "flex-1 py-3 text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-slate-300 transition-all";
+
+            if (tab === 'balls') {
+                tabBalls.className = "flex-1 py-3 text-sm font-bold border-b-2 border-orange-500 text-orange-400 transition-all";
+            } else if (tab === 'paddles') {
+                tabPaddles.className = "flex-1 py-3 text-sm font-bold border-b-2 border-orange-500 text-orange-400 transition-all";
+            } else {
+                tabAcoustic.className = "flex-1 py-3 text-sm font-bold border-b-2 border-orange-500 text-orange-400 transition-all";
+            }
+            renderShopItems();
+        }
+
+        function renderShopItems() {
+            const container = document.getElementById('shopItemsGrid');
+            if (!container) return;
+            container.innerHTML = '';
+
+            const pSkins = gameState.purchasedSkins || ['orangeClassic'];
+            const pPaddleSkins = gameState.purchasedPaddleSkins || ['proClassic'];
+
+            if (currentShopTab === 'balls') {
+                Object.keys(ballSkins).forEach(key => {
+                    const item = ballSkins[key];
+                    const isBought = pSkins.includes(key);
+                    const isActive = gameState.activeBallSkin === key;
+
+                    const itemDiv = document.createElement('div');
+                    itemDiv.className = "bg-slate-950 p-4 rounded-xl border border-slate-800 flex justify-between items-center";
+                    itemDiv.innerHTML = `
+                        <div class="flex items-center gap-3">
+                            <span class="w-6 h-6 rounded-full inline-block border border-white/20" style="background-color: ${item.color}"></span>
+                            <div>
+                                <h4 class="text-sm font-bold text-white">${item.name}</h4>
+                                <p class="text-xs text-amber-500 font-bold">${isBought ? 'נרכש' : `${item.price} מטבעות`}</p>
+                            </div>
+                        </div>
+                        <div>
+                            ${isActive 
+                                ? `<span class="bg-orange-500/10 text-orange-400 border border-orange-500/20 px-3 py-1.5 rounded-lg text-xs font-bold">פעיל</span>`
+                                : isBought 
+                                    ? `<button onclick="equipItem('${key}', 'ball')" class="bg-slate-800 hover:bg-slate-700 text-white px-4 py-1.5 rounded-lg text-xs font-bold">הפעל</button>`
+                                    : `<button onclick="buyItem('${key}', 'ball', ${item.price})" class="bg-orange-500 hover:bg-orange-400 text-slate-950 px-4 py-1.5 rounded-lg text-xs font-bold">קנה <i class="fa-solid fa-cart-shopping"></i></button>`
+                            }
+                        </div>
+                    `;
+                    container.appendChild(itemDiv);
+                });
+            } else {
+                // Both paddles and acoustic tabs show paddle skins, acoustic filters to acoustic only
+                const showAcoustic = currentShopTab === 'acoustic';
+                
+                // Header banner for acoustic section
+                if (showAcoustic) {
+                    const banner = document.createElement('div');
+                    banner.className = "col-span-full bg-violet-950/40 border border-violet-700/30 rounded-xl p-3 text-center";
+                    banner.innerHTML = `<p class="text-xs text-violet-300">🪵 <strong>מטקות אקוטיות</strong> — עשויות עץ אמיתי, מעניקות בונוס עוצמה וסאונד ייחודי לכל חבטה</p>`;
+                    container.appendChild(banner);
+                }
+
+                Object.keys(paddleSkins).forEach(key => {
+                    const item = paddleSkins[key];
+                    if (showAcoustic && !item.acoustic) return;
+                    if (!showAcoustic && item.acoustic) return;
+                    
+                    const isBought = pPaddleSkins.includes(key);
+                    const isActive = gameState.activePaddleSkin === key;
+
+                    const itemDiv = document.createElement('div');
+                    itemDiv.className = `bg-slate-950 p-4 rounded-xl border flex justify-between items-center ${item.acoustic ? 'border-violet-700/50' : 'border-slate-800'}`;
+                    itemDiv.innerHTML = `
+                        <div class="flex items-center gap-3">
+                            <span class="w-6 h-6 rounded-md inline-block border border-white/20 relative" style="background-color: ${item.rubberColor}">
+                                ${item.acoustic ? '<span style="position:absolute;top:-5px;right:-5px;font-size:10px">🪵</span>' : ''}
+                            </span>
+                            <div>
+                                <h4 class="text-sm font-bold text-white">${item.name}</h4>
+                                <p class="text-xs font-bold" style="color:#f59e0b">${isBought ? 'נרכש' : `${item.price} מטבעות`}${item.speedBonus ? ` &nbsp;<span style="color:#22c55e">+${Math.round(item.speedBonus*100)}% עוצמה</span>` : ''}</p>
+                            </div>
+                        </div>
+                        <div>
+                            ${isActive 
+                                ? `<span class="bg-orange-500/10 text-orange-400 border border-orange-500/20 px-3 py-1.5 rounded-lg text-xs font-bold">פעיל</span>`
+                                : isBought 
+                                    ? `<button onclick="equipItem('${key}', 'paddle')" class="bg-slate-800 hover:bg-slate-700 text-white px-4 py-1.5 rounded-lg text-xs font-bold">הפעל</button>`
+                                    : `<button onclick="buyItem('${key}', 'paddle', ${item.price})" class="${item.acoustic ? 'bg-violet-600 hover:bg-violet-500' : 'bg-orange-500 hover:bg-orange-400'} text-white px-4 py-1.5 rounded-lg text-xs font-bold">קנה <i class="fa-solid fa-cart-shopping"></i></button>`
+                            }
+                        </div>
+                    `;
+                    container.appendChild(itemDiv);
+                });
+            }
+        }
+
+        function buyItem(key, type, price) {
+            if (gameState.coins >= price) {
+                gameState.coins -= price;
+                if (type === 'ball') {
+                    gameState.purchasedSkins.push(key);
+                } else {
+                    gameState.purchasedPaddleSkins.push(key);
+                }
+                saveGameData();
+                renderShopItems();
+                playSound('score');
+            } else {
+                playSound('table-hit'); // Buzzer negative feedback sound
+            }
+        }
+
+        function equipItem(key, type) {
+            if (type === 'ball') {
+                gameState.activeBallSkin = key;
+            } else {
+                gameState.activePaddleSkin = key;
+            }
+            saveGameData();
+            renderShopItems();
+            playSound('paddle-hit');
+        }
+    </script>
+
+    <script>
+        function startGame() {
+            initToneAudio();
+
+            document.getElementById('mainMenu').classList.add('hidden');
+            document.getElementById('gameOverOverlay').classList.add('hidden');
+            document.getElementById('pauseBtn').classList.remove('hidden');
+
+            player.score = 0;
+            ai.score = 0;
+            document.getElementById('playerScoreDisplay').textContent = 0;
+            document.getElementById('aiScoreDisplay').textContent = 0;
+
+            particles = [];
+            serveCount = 0;
+            totalServesInGame = 0;
+            difficultyBonus = 0;
+            setupServe('player'); // Player serves first
+
+            isRunning = true;
+            isPaused = false;
+        }
+
+        function togglePause() {
+            if (!isRunning) return;
+            isPaused = !isPaused;
+            const btnSpan = document.querySelector('#pauseBtn');
+            if (isPaused) {
+                btnSpan.innerHTML = '<i class="fa-solid fa-play mr-1"></i> המשך';
+            } else {
+                btnSpan.innerHTML = '<i class="fa-solid fa-pause mr-1"></i> עצור';
+            }
+        }
+
+        function backToMenu() {
+            isRunning = false;
+            document.getElementById('gameOverOverlay').classList.add('hidden');
+            document.getElementById('mainMenu').classList.remove('hidden');
+            document.getElementById('pauseBtn').classList.add('hidden');
+            document.getElementById('serveAlertHUD').classList.add('hidden');
+        }
+
+        function triggerGameOver(winner) {
+            isRunning = false;
+            document.getElementById('pauseBtn').classList.add('hidden');
+            document.getElementById('gameOverOverlay').classList.remove('hidden');
+            document.getElementById('serveAlertHUD').classList.add('hidden');
+
+            const isWinner = winner === 'player';
+            const earned = isWinner ? (60 + player.score * 5) : (player.score * 4);
+
+            gameState.coins += earned;
+            saveGameData();
+
+            document.getElementById('goResultIcon').textContent = isWinner ? '🏆' : '💀';
+            document.getElementById('goResultTitle').textContent = isWinner ? 'ניצחת!' : 'הפסדת!';
+            document.getElementById('goResultTitle').className = isWinner ? "text-4xl font-tech font-extrabold text-emerald-500 mb-2" : "text-4xl font-tech font-extrabold text-rose-500 mb-2";
+            document.getElementById('goResultDesc').textContent = isWinner ? 'ניצחת את טורניר היריב הווירטואלי בהצלחה!' : 'היריב הוביל הפעם. נסה להתאמן שוב ברמת אימון!';
+            document.getElementById('goCoinsEarned').textContent = `+${Math.floor(earned)}`;
+            document.getElementById('goFinalScore').textContent = `${ai.score} - ${player.score}`;
+        }
+
+        function gameLoop() {
+            updatePhysics();
+            draw3DScene();
+            requestAnimationFrame(gameLoop);
+        }
+
+        window.onload = function() {
+            loadGameData();
+            handleResize();
+            setDifficulty('medium');
+            gameLoop();
+        };
+    </script>
+</body>
+</html>
